@@ -35,6 +35,15 @@ export class PhysicsEngine {
         this.MAX_SUBSTEP = 0.005;
         this.TARGET_SPRING_K = 20.0;
         this.BOUNDARY = 60;
+
+        // Environment parameters (set by SimulationManager)
+        this.windX = 0;
+        this.windY = 0;
+        this.windZ = 0;
+        this.viscosity = 0;
+        this.temperature = 293;
+        this.friction = 0.8;
+        this.bounciness = 0.3;
     }
 
     initPositions(positions, count) {
@@ -138,9 +147,27 @@ export class PhysicsEngine {
         // Clear accelerations
         this.acc.fill(0, 0, n * 3);
 
-        // Apply gravity
+        // Apply gravity + wind
         for (let i = 0; i < n; i++) {
-            this.acc[i * 3 + 1] += this.GRAVITY;
+            const idx = i * 3;
+            this.acc[idx] += this.windX;
+            this.acc[idx + 1] += this.GRAVITY + this.windY;
+            this.acc[idx + 2] += this.windZ;
+
+            // Viscosity drag (opposes velocity)
+            if (this.viscosity > 0) {
+                this.acc[idx] -= this.vel[idx] * this.viscosity;
+                this.acc[idx + 1] -= this.vel[idx + 1] * this.viscosity;
+                this.acc[idx + 2] -= this.vel[idx + 2] * this.viscosity;
+            }
+
+            // Thermal agitation (Brownian motion)
+            if (this.temperature > 300) {
+                const thermalK = (this.temperature - 300) * 0.0005;
+                this.acc[idx] += (Math.random() - 0.5) * thermalK;
+                this.acc[idx + 1] += (Math.random() - 0.5) * thermalK;
+                this.acc[idx + 2] += (Math.random() - 0.5) * thermalK;
+            }
         }
 
         // Apply target springs
@@ -254,14 +281,16 @@ export class PhysicsEngine {
         }
 
         // Ground collision
+        const fric = 1.0 - this.friction;
+        const bounce = this.bounciness;
         for (let i = 0; i < n; i++) {
             const idx = i * 3 + 1;
             if (this.pos[idx] < this.GROUND_Y) {
                 this.pos[idx] = this.GROUND_Y;
-                this.prevPos[idx] = this.GROUND_Y;
-                this.vel[idx - 1] *= 0.8; // friction
-                this.vel[idx] = 0;
-                this.vel[idx + 1] *= 0.8;
+                this.prevPos[idx] = this.GROUND_Y + this.vel[idx] * bounce * dt;
+                this.vel[idx - 1] *= fric; // friction
+                this.vel[idx] *= -bounce;  // bounce
+                this.vel[idx + 1] *= fric;
             }
         }
 

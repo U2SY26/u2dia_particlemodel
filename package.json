@@ -1,0 +1,19 @@
+{
+  "name": "particle-architect",
+  "version": "1.0.0",
+  "description": "3D Neon Particle Architecture Simulator with physics sandbox",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js --dev",
+    "stop": "node server-ctl.js stop"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5",
+    "uuid": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

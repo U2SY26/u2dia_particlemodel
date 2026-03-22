@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Neon Particle XR Simulator</title>
+    <title>Particle Architect</title>
     <link rel="stylesheet" href="css/style.css">
     <script type="importmap">
     {
@@ -15,33 +15,151 @@
     </script>
 </head>
 <body>
-    <div id="canvas-container"></div>
+    <!-- ========== LEFT SIDEBAR ========== -->
+    <aside id="sidebar">
+        <div id="sidebar-header">
+            <h1>PARTICLE<br/>ARCHITECT</h1>
+            <div id="server-indicator">
+                <span id="server-dot"></span>
+                <span id="server-label">OFFLINE</span>
+            </div>
+        </div>
 
-    <div id="ui-overlay">
-        <div id="title-bar">
-            <h1>PARTICLE ARCHITECT</h1>
+        <button id="new-card-btn">+ NEW SIMULATION</button>
+
+        <div id="card-list">
+            <!-- Cards dynamically inserted -->
+        </div>
+
+        <!-- Active Card Detail -->
+        <div id="card-detail" class="hidden">
+            <div id="detail-divider">
+                <span>ACTIVE SIMULATION</span>
+            </div>
+
+            <!-- Physics Parameters -->
+            <div id="physics-section">
+                <h3 class="section-title" data-toggle="physics-params">
+                    <span class="toggle-icon">&#9660;</span> PHYSICS
+                </h3>
+                <div id="physics-params">
+                    <div class="param-group">
+                        <label>Gravity</label>
+                        <input type="range" id="param-gravity" min="-30" max="30" step="0.1" value="-9.81"/>
+                        <span class="param-value" data-for="param-gravity">-9.81</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Damping</label>
+                        <input type="range" id="param-damping" min="0" max="1" step="0.01" value="0.97"/>
+                        <span class="param-value" data-for="param-damping">0.97</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Spring K</label>
+                        <input type="range" id="param-springK" min="0" max="100" step="0.5" value="20"/>
+                        <span class="param-value" data-for="param-springK">20.0</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Time Scale</label>
+                        <input type="range" id="param-timeScale" min="0" max="5" step="0.1" value="1.0"/>
+                        <span class="param-value" data-for="param-timeScale">1.0</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Friction</label>
+                        <input type="range" id="param-friction" min="0" max="1" step="0.01" value="0.8"/>
+                        <span class="param-value" data-for="param-friction">0.80</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Bounciness</label>
+                        <input type="range" id="param-bounciness" min="0" max="1" step="0.01" value="0.3"/>
+                        <span class="param-value" data-for="param-bounciness">0.30</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Particles</label>
+                        <input type="range" id="param-particles" min="1000" max="50000" step="1000" value="25000"/>
+                        <span class="param-value" data-for="param-particles">25000</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Environment -->
+            <div id="environment-section">
+                <h3 class="section-title" data-toggle="env-params">
+                    <span class="toggle-icon">&#9660;</span> ENVIRONMENT
+                </h3>
+                <div id="env-params">
+                    <div class="param-group">
+                        <label>Wind X</label>
+                        <input type="range" id="param-windX" min="-20" max="20" step="0.5" value="0"/>
+                        <span class="param-value" data-for="param-windX">0.0</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Wind Y</label>
+                        <input type="range" id="param-windY" min="-20" max="20" step="0.5" value="0"/>
+                        <span class="param-value" data-for="param-windY">0.0</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Wind Z</label>
+                        <input type="range" id="param-windZ" min="-20" max="20" step="0.5" value="0"/>
+                        <span class="param-value" data-for="param-windZ">0.0</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Viscosity</label>
+                        <input type="range" id="param-viscosity" min="0" max="5" step="0.1" value="0"/>
+                        <span class="param-value" data-for="param-viscosity">0.0</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Temp (K)</label>
+                        <input type="range" id="param-temperature" min="0" max="5000" step="10" value="293"/>
+                        <span class="param-value" data-for="param-temperature">293</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Chat -->
+            <div id="chat-section">
+                <h3 class="section-title" data-toggle="chat-container">
+                    <span class="toggle-icon">&#9660;</span> AI CHAT
+                </h3>
+                <div id="chat-container">
+                    <div id="chat-messages"></div>
+                    <div id="chat-input-area">
+                        <input type="text" id="chat-input"
+                               placeholder="물리법칙을 자연어로 설명해보세요..."
+                               autocomplete="off"/>
+                        <button id="chat-send-btn">&#9654;</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ========== MAIN CANVAS ========== -->
+    <main id="main-content">
+        <div id="top-bar">
             <div id="stats">
                 <span id="particle-count">0</span> particles
                 <span id="fps-counter">60 fps</span>
             </div>
+            <div id="status-bar">
+                <span id="status">Ready</span>
+                <span id="structure-info"></span>
+            </div>
         </div>
 
-        <div id="prompt-panel">
-            <input type="text" id="prompt-input"
-                   placeholder="Enter structure: cathedral, bridge, tower, pyramid, skyscraper..."
-                   autocomplete="off" />
-            <button id="generate-btn">BUILD</button>
-        </div>
+        <div id="canvas-container"></div>
 
-        <div id="status-bar">
-            <span id="status">Ready</span>
-            <span id="structure-info"></span>
+        <div id="bottom-panel">
+            <div id="prompt-panel">
+                <input type="text" id="prompt-input"
+                       placeholder="구조를 입력하세요: 3층 건물, 고딕 성당, 현수교, 피라미드..."
+                       autocomplete="off" />
+                <button id="generate-btn">BUILD</button>
+            </div>
+            <div id="controls-hint">
+                Orbit: drag &nbsp;|&nbsp; Zoom: scroll &nbsp;|&nbsp; Pan: right-drag
+            </div>
         </div>
-
-        <div id="controls-hint">
-            <span>Orbit: drag | Zoom: scroll | Pan: right-drag</span>
-        </div>
-    </div>
+    </main>
 
     <script type="module" src="js/app.js"></script>
 </body>
