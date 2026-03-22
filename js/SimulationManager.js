@@ -6,68 +6,71 @@
 
 const API_BASE = '';  // Same origin
 
+// Default physics template
+const BASE_PHYSICS = {
+    gravity: -9.81, damping: 0.97, springStiffness: 20, particleCount: 25000,
+    timeScale: 1.0, friction: 0.8, bounciness: 0.3,
+    windX: 0, windY: 0, windZ: 0, turbulence: 0,
+    viscosity: 0, temperature: 293,
+    foundation: 5.0, density: 2.4, elasticity: 0.3, yieldStrength: 50,
+    seismic: 0, seismicFreq: 2.0, snowLoad: 0, floodLevel: 0,
+};
+
+const p = (overrides) => ({ ...BASE_PHYSICS, ...overrides });
+
 // Default physics presets for quick card creation
 const PRESETS = [
-    {
-        name: '3층 건물',
-        prompt: '3층 건물',
-        tags: ['building', 'basic'],
-        physics: { gravity: -9.81, damping: 0.97, springStiffness: 20, particleCount: 25000, timeScale: 1.0, friction: 0.8, bounciness: 0.3, windX: 0, windY: 0, windZ: 0, viscosity: 0, temperature: 293 },
-    },
-    {
-        name: '고딕 성당',
-        prompt: 'gothic cathedral',
-        tags: ['cathedral', 'gothic'],
-        physics: { gravity: -9.81, damping: 0.97, springStiffness: 25, particleCount: 25000, timeScale: 1.0, friction: 0.8, bounciness: 0.2, windX: 0, windY: 0, windZ: 0, viscosity: 0, temperature: 293 },
-    },
-    {
-        name: '거대 현수교',
-        prompt: 'large bridge',
-        tags: ['bridge', 'large'],
-        physics: { gravity: -9.81, damping: 0.95, springStiffness: 30, particleCount: 25000, timeScale: 1.0, friction: 0.7, bounciness: 0.4, windX: 2, windY: 0, windZ: 0, viscosity: 0, temperature: 293 },
-    },
-    {
-        name: '무중력 파티클',
-        prompt: 'sphere',
-        tags: ['zero-g', 'experiment'],
-        physics: { gravity: 0, damping: 0.99, springStiffness: 5, particleCount: 25000, timeScale: 1.0, friction: 0.1, bounciness: 0.9, windX: 0, windY: 0, windZ: 0, viscosity: 0, temperature: 293 },
-    },
-    {
-        name: '강풍 테스트',
-        prompt: 'tower',
-        tags: ['wind', 'stress-test'],
-        physics: { gravity: -9.81, damping: 0.93, springStiffness: 15, particleCount: 25000, timeScale: 1.0, friction: 0.6, bounciness: 0.3, windX: 12, windY: 3, windZ: -5, viscosity: 0.5, temperature: 293 },
-    },
-    {
-        name: '점성 유체',
-        prompt: 'dome',
-        tags: ['fluid', 'viscous'],
-        physics: { gravity: -4.0, damping: 0.85, springStiffness: 3, particleCount: 25000, timeScale: 0.8, friction: 0.95, bounciness: 0.05, windX: 0, windY: 0, windZ: 0, viscosity: 4.0, temperature: 350 },
-    },
-    {
-        name: '탄성 피라미드',
-        prompt: 'pyramid',
-        tags: ['elastic', 'bouncy'],
-        physics: { gravity: -9.81, damping: 0.98, springStiffness: 8, particleCount: 25000, timeScale: 1.2, friction: 0.4, bounciness: 0.85, windX: 0, windY: 0, windZ: 0, viscosity: 0, temperature: 293 },
-    },
-    {
-        name: '미니어처 성',
-        prompt: 'small castle',
-        tags: ['castle', 'mini'],
-        physics: { gravity: -9.81, damping: 0.97, springStiffness: 35, particleCount: 15000, timeScale: 1.0, friction: 0.8, bounciness: 0.2, windX: 0, windY: 0, windZ: 0, viscosity: 0, temperature: 293 },
-    },
-    {
-        name: '고온 플라즈마',
-        prompt: 'sphere',
-        tags: ['plasma', 'hot'],
-        physics: { gravity: 0.5, damping: 0.90, springStiffness: 2, particleCount: 30000, timeScale: 1.5, friction: 0.1, bounciness: 0.7, windX: 0, windY: 5, windZ: 0, viscosity: 0.2, temperature: 4500 },
-    },
-    {
-        name: '경기장 시뮬',
-        prompt: 'stadium',
-        tags: ['stadium', 'large'],
-        physics: { gravity: -9.81, damping: 0.97, springStiffness: 22, particleCount: 25000, timeScale: 1.0, friction: 0.8, bounciness: 0.3, windX: 0, windY: 0, windZ: 0, viscosity: 0, temperature: 293 },
-    },
+    // ========== BUILDINGS ==========
+    { name: '1층 주택',         prompt: 'house',                tags: ['building', '1F'],     physics: p({ springStiffness: 18, foundation: 4 }) },
+    { name: '2층 건물',         prompt: '2층 건물',              tags: ['building', '2F'],     physics: p({ springStiffness: 20, foundation: 5 }) },
+    { name: '3층 건물',         prompt: '3층 건물',              tags: ['building', '3F'],     physics: p({ springStiffness: 22, foundation: 5 }) },
+    { name: '5층 아파트',       prompt: '5층 건물',              tags: ['building', '5F'],     physics: p({ springStiffness: 25, foundation: 6 }) },
+    { name: '10층 오피스',      prompt: '10층 건물',             tags: ['building', '10F'],    physics: p({ springStiffness: 30, foundation: 7 }) },
+    { name: '20층 타워',        prompt: '20층 건물',             tags: ['building', 'high'],   physics: p({ springStiffness: 40, foundation: 8, density: 2.5 }) },
+    { name: '강철 고층빌딩',     prompt: 'tall skyscraper',       tags: ['building', 'steel'],  physics: p({ springStiffness: 60, foundation: 9, density: 7.8, yieldStrength: 90, elasticity: 0.2 }) },
+    { name: '목조 주택',        prompt: 'small house',           tags: ['building', 'wood'],   physics: p({ springStiffness: 12, foundation: 3, density: 0.6, yieldStrength: 20, elasticity: 0.5 }) },
+    { name: '콘크리트 건물',     prompt: '5층 건물',              tags: ['building', 'concrete'], physics: p({ springStiffness: 35, foundation: 7, density: 2.4, yieldStrength: 45, elasticity: 0.15 }) },
+    { name: '유리 건물',        prompt: '10층 건물',             tags: ['building', 'glass'],  physics: p({ springStiffness: 15, foundation: 6, density: 2.5, yieldStrength: 15, elasticity: 0.1 }) },
+    { name: '지진 내진 건물',    prompt: '5층 건물',              tags: ['building', 'seismic'], physics: p({ springStiffness: 45, foundation: 9, seismic: 5, seismicFreq: 3.0, elasticity: 0.4 }) },
+    { name: '약한 기초 건물',    prompt: '3층 건물',              tags: ['building', 'weak'],   physics: p({ springStiffness: 10, foundation: 1.5, density: 2.4, yieldStrength: 20 }) },
+
+    // ========== BRIDGES ==========
+    { name: '소형 인도교',       prompt: 'small bridge',          tags: ['bridge', 'small'],    physics: p({ springStiffness: 20, foundation: 4, density: 2.0 }) },
+    { name: '중형 다리',        prompt: 'bridge',                tags: ['bridge', 'medium'],   physics: p({ springStiffness: 30, foundation: 6, density: 2.4 }) },
+    { name: '대형 현수교',       prompt: 'large bridge',          tags: ['bridge', 'large'],    physics: p({ springStiffness: 40, foundation: 8, density: 7.8 }) },
+    { name: '강풍 다리',        prompt: 'wide bridge',           tags: ['bridge', 'wind'],     physics: p({ springStiffness: 25, windX: 10, windZ: 3, turbulence: 4, foundation: 6 }) },
+    { name: '강철 트러스교',     prompt: 'large bridge',          tags: ['bridge', 'steel'],    physics: p({ springStiffness: 55, foundation: 9, density: 7.8, yieldStrength: 85 }) },
+    { name: '목재 다리',        prompt: 'small bridge',          tags: ['bridge', 'wood'],     physics: p({ springStiffness: 10, foundation: 3, density: 0.5, yieldStrength: 15, elasticity: 0.6 }) },
+    { name: '지진 다리 테스트',  prompt: 'bridge',                tags: ['bridge', 'seismic'],  physics: p({ springStiffness: 30, seismic: 6, seismicFreq: 2.5, foundation: 7 }) },
+    { name: '적설 다리',        prompt: 'bridge',                tags: ['bridge', 'snow'],     physics: p({ springStiffness: 28, snowLoad: 5, foundation: 6 }) },
+    { name: '홍수 다리',        prompt: 'bridge',                tags: ['bridge', 'flood'],    physics: p({ springStiffness: 30, floodLevel: 4, viscosity: 1.5, foundation: 6 }) },
+    { name: '약한 기초 다리',    prompt: 'bridge',                tags: ['bridge', 'weak'],     physics: p({ springStiffness: 15, foundation: 1.0, yieldStrength: 15 }) },
+
+    // ========== TOWERS ==========
+    { name: '전망 타워',        prompt: 'tall tower',            tags: ['tower', 'tall'],      physics: p({ springStiffness: 35, foundation: 7 }) },
+    { name: '강풍 타워',        prompt: 'tower',                 tags: ['tower', 'wind'],      physics: p({ springStiffness: 15, windX: 12, windY: 3, windZ: -5, turbulence: 5 }) },
+    { name: '지진 타워',        prompt: 'tower',                 tags: ['tower', 'seismic'],   physics: p({ springStiffness: 25, seismic: 7, seismicFreq: 4.0 }) },
+
+    // ========== SPECIAL STRUCTURES ==========
+    { name: '고딕 성당',        prompt: 'gothic cathedral',      tags: ['cathedral', 'gothic'], physics: p({ springStiffness: 25, foundation: 7, density: 2.6 }) },
+    { name: '고전 사원',        prompt: 'classical temple',      tags: ['temple', 'classical'], physics: p({ springStiffness: 30, foundation: 8, density: 2.7 }) },
+    { name: '미니어처 성',       prompt: 'small castle',          tags: ['castle', 'mini'],     physics: p({ springStiffness: 35, foundation: 8, particleCount: 15000 }) },
+    { name: '거대 피라미드',     prompt: 'huge pyramid',          tags: ['pyramid', 'huge'],    physics: p({ springStiffness: 50, foundation: 10, density: 2.3, yieldStrength: 80 }) },
+    { name: '경기장',           prompt: 'stadium',               tags: ['stadium', 'large'],   physics: p({ springStiffness: 22 }) },
+    { name: '대형 돔',          prompt: 'large dome',            tags: ['dome', 'large'],      physics: p({ springStiffness: 28, foundation: 6 }) },
+    { name: '아치 게이트',       prompt: '3 arch',               tags: ['arch', 'gate'],       physics: p({ springStiffness: 22 }) },
+    { name: '성벽',             prompt: 'wide wall',             tags: ['wall', 'defense'],    physics: p({ springStiffness: 35, foundation: 8, density: 2.5 }) },
+
+    // ========== EXPERIMENTS ==========
+    { name: '무중력 파티클',     prompt: 'sphere',                tags: ['zero-g', 'experiment'], physics: p({ gravity: 0, damping: 0.99, springStiffness: 5, bounciness: 0.9, friction: 0.1 }) },
+    { name: '강한 중력',        prompt: 'cube',                  tags: ['gravity', 'heavy'],   physics: p({ gravity: -25, springStiffness: 8, bounciness: 0.1 }) },
+    { name: '역중력',           prompt: 'pyramid',               tags: ['anti-gravity'],        physics: p({ gravity: 5, damping: 0.95, springStiffness: 10 }) },
+    { name: '탄성 구조',        prompt: 'dome',                  tags: ['elastic', 'bouncy'],  physics: p({ springStiffness: 8, bounciness: 0.85, elasticity: 0.8, damping: 0.98, friction: 0.4 }) },
+    { name: '점성 유체',        prompt: 'sphere',                tags: ['fluid', 'viscous'],   physics: p({ gravity: -4.0, damping: 0.85, springStiffness: 3, viscosity: 4.0, friction: 0.95, bounciness: 0.05, temperature: 350 }) },
+    { name: '고온 플라즈마',     prompt: 'sphere',                tags: ['plasma', 'hot'],      physics: p({ gravity: 0.5, damping: 0.90, springStiffness: 2, particleCount: 30000, bounciness: 0.7, friction: 0.1, windY: 5, viscosity: 0.2, temperature: 4500 }) },
+    { name: '극저온 동결',       prompt: 'cube',                  tags: ['cryo', 'frozen'],     physics: p({ temperature: 5, damping: 0.999, springStiffness: 50, friction: 0.99, bounciness: 0.01 }) },
+    { name: '슬로우모션',       prompt: 'tower',                 tags: ['slow', 'cinematic'],  physics: p({ timeScale: 0.2, springStiffness: 20 }) },
+    { name: '고속 시뮬',        prompt: 'house',                 tags: ['fast', 'speed'],      physics: p({ timeScale: 3.0, springStiffness: 20 }) },
 ];
 
 export class SimulationManager {
@@ -324,11 +327,20 @@ export class SimulationManager {
             'param-friction': physics.friction,
             'param-bounciness': physics.bounciness,
             'param-particles': physics.particleCount,
+            'param-foundation': physics.foundation,
+            'param-density': physics.density,
+            'param-elasticity': physics.elasticity,
+            'param-yieldStrength': physics.yieldStrength,
             'param-windX': physics.windX,
             'param-windY': physics.windY,
             'param-windZ': physics.windZ,
+            'param-turbulence': physics.turbulence,
             'param-viscosity': physics.viscosity,
             'param-temperature': physics.temperature,
+            'param-seismic': physics.seismic,
+            'param-seismicFreq': physics.seismicFreq,
+            'param-snowLoad': physics.snowLoad,
+            'param-floodLevel': physics.floodLevel,
         };
 
         for (const [id, val] of Object.entries(paramMap)) {
@@ -342,19 +354,29 @@ export class SimulationManager {
     }
 
     _getPhysicsFromUI() {
+        const g = (id) => parseFloat(document.getElementById(id).value);
         return {
-            gravity: parseFloat(document.getElementById('param-gravity').value),
-            damping: parseFloat(document.getElementById('param-damping').value),
-            springStiffness: parseFloat(document.getElementById('param-springK').value),
-            timeScale: parseFloat(document.getElementById('param-timeScale').value),
-            friction: parseFloat(document.getElementById('param-friction').value),
-            bounciness: parseFloat(document.getElementById('param-bounciness').value),
+            gravity: g('param-gravity'),
+            damping: g('param-damping'),
+            springStiffness: g('param-springK'),
+            timeScale: g('param-timeScale'),
+            friction: g('param-friction'),
+            bounciness: g('param-bounciness'),
             particleCount: parseInt(document.getElementById('param-particles').value),
-            windX: parseFloat(document.getElementById('param-windX').value),
-            windY: parseFloat(document.getElementById('param-windY').value),
-            windZ: parseFloat(document.getElementById('param-windZ').value),
-            viscosity: parseFloat(document.getElementById('param-viscosity').value),
-            temperature: parseFloat(document.getElementById('param-temperature').value),
+            foundation: g('param-foundation'),
+            density: g('param-density'),
+            elasticity: g('param-elasticity'),
+            yieldStrength: g('param-yieldStrength'),
+            windX: g('param-windX'),
+            windY: g('param-windY'),
+            windZ: g('param-windZ'),
+            turbulence: g('param-turbulence'),
+            viscosity: g('param-viscosity'),
+            temperature: g('param-temperature'),
+            seismic: g('param-seismic'),
+            seismicFreq: g('param-seismicFreq'),
+            snowLoad: g('param-snowLoad'),
+            floodLevel: g('param-floodLevel'),
         };
     }
 

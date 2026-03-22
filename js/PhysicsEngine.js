@@ -40,10 +40,26 @@ export class PhysicsEngine {
         this.windX = 0;
         this.windY = 0;
         this.windZ = 0;
+        this.turbulence = 0;
         this.viscosity = 0;
         this.temperature = 293;
         this.friction = 0.8;
         this.bounciness = 0.3;
+
+        // Material parameters
+        this.foundation = 5.0;
+        this.density = 2.4;
+        this.elasticity = 0.3;
+        this.yieldStrength = 50;
+
+        // Hazard parameters
+        this.seismic = 0;
+        this.seismicFreq = 2.0;
+        this.snowLoad = 0;
+        this.floodLevel = 0;
+
+        // Internal time accumulator for seismic wave
+        this._totalTime = 0;
     }
 
     initPositions(positions, count) {
@@ -147,12 +163,52 @@ export class PhysicsEngine {
         // Clear accelerations
         this.acc.fill(0, 0, n * 3);
 
-        // Apply gravity + wind
+        this._totalTime += dt;
+
+        // Seismic wave
+        let seismicX = 0, seismicZ = 0;
+        if (this.seismic > 0) {
+            const freq = this.seismicFreq;
+            const amp = this.seismic;
+            seismicX = Math.sin(this._totalTime * freq * Math.PI * 2) * amp;
+            seismicZ = Math.cos(this._totalTime * freq * Math.PI * 2 * 0.7) * amp * 0.6;
+        }
+
+        // Apply gravity + wind + environment
         for (let i = 0; i < n; i++) {
             const idx = i * 3;
-            this.acc[idx] += this.windX;
-            this.acc[idx + 1] += this.GRAVITY + this.windY;
-            this.acc[idx + 2] += this.windZ;
+
+            // Wind with turbulence
+            let wx = this.windX;
+            let wy = this.windY;
+            let wz = this.windZ;
+            if (this.turbulence > 0) {
+                wx += (Math.random() - 0.5) * this.turbulence;
+                wy += (Math.random() - 0.5) * this.turbulence * 0.3;
+                wz += (Math.random() - 0.5) * this.turbulence;
+            }
+
+            this.acc[idx] += wx + seismicX;
+            this.acc[idx + 1] += this.GRAVITY + wy;
+            this.acc[idx + 2] += wz + seismicZ;
+
+            // Snow load (downward force on particles above ground)
+            if (this.snowLoad > 0 && this.pos[idx + 1] > 1.0) {
+                this.acc[idx + 1] -= this.snowLoad * 0.5;
+            }
+
+            // Flood buoyancy (upward force on particles below flood level)
+            if (this.floodLevel > 0) {
+                const floodY = this.floodLevel;
+                if (this.pos[idx + 1] < floodY) {
+                    const depth = floodY - this.pos[idx + 1];
+                    this.acc[idx + 1] += depth * 3.0; // buoyancy
+                    // Water drag
+                    this.acc[idx] -= this.vel[idx] * 2.0;
+                    this.acc[idx + 1] -= this.vel[idx + 1] * 2.0;
+                    this.acc[idx + 2] -= this.vel[idx + 2] * 2.0;
+                }
+            }
 
             // Viscosity drag (opposes velocity)
             if (this.viscosity > 0) {

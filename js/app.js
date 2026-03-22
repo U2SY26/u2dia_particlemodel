@@ -117,19 +117,33 @@ class App {
         this.physics.TARGET_SPRING_K = p.springStiffness;
         this.timeScale = p.timeScale;
 
-        // Wind and viscosity stored for substep usage
+        // Wind & environment
         this.physics.windX = p.windX || 0;
         this.physics.windY = p.windY || 0;
         this.physics.windZ = p.windZ || 0;
+        this.physics.turbulence = p.turbulence || 0;
         this.physics.viscosity = p.viscosity || 0;
         this.physics.temperature = p.temperature || 293;
         this.physics.friction = p.friction || 0.8;
         this.physics.bounciness = p.bounciness || 0.3;
 
+        // Material
+        this.physics.foundation = p.foundation || 5.0;
+        this.physics.density = p.density || 2.4;
+        this.physics.elasticity = p.elasticity || 0.3;
+        this.physics.yieldStrength = p.yieldStrength || 50;
+
+        // Hazards
+        this.physics.seismic = p.seismic || 0;
+        this.physics.seismicFreq = p.seismicFreq || 2.0;
+        this.physics.snowLoad = p.snowLoad || 0;
+        this.physics.floodLevel = p.floodLevel || 0;
+
         // Update target stiffness for existing particles
+        const foundationK = (p.foundation || 5.0) / 5.0;
         for (let i = 0; i < this.physics.activeCount; i++) {
             if (this.physics.hasTarget[i]) {
-                this.physics.targetStiffness[i] = p.springStiffness * (1.0 + (this.physics.mass[i] - 1.0) * 0.75);
+                this.physics.targetStiffness[i] = p.springStiffness * foundationK * (1.0 + (this.physics.mass[i] - 1.0) * 0.75);
             }
         }
     }
