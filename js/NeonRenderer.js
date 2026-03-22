@@ -3,11 +3,96 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
+/**
+ * Quality presets for different GPU tiers
+ */
+export const QUALITY = {
+    LOW: {
+        label: 'LOW',
+        bloomStrength: 0.6,
+        bloomRadius: 0.15,
+        bloomThreshold: 0.2,
+        bloomResScale: 0.25,    // quarter resolution bloom
+        particleSegments: 4,
+        particleRings: 3,
+        maxParticles: 10000,
+        pixelRatio: 1.0,
+    },
+    MEDIUM: {
+        label: 'MEDIUM',
+        bloomStrength: 1.2,
+        bloomRadius: 0.3,
+        bloomThreshold: 0.15,
+        bloomResScale: 0.5,     // half resolution bloom
+        particleSegments: 5,
+        particleRings: 3,
+        maxParticles: 20000,
+        pixelRatio: Math.min(window.devicePixelRatio, 1.5),
+    },
+    HIGH: {
+        label: 'HIGH',
+        bloomStrength: 1.8,
+        bloomRadius: 0.4,
+        bloomThreshold: 0.1,
+        bloomResScale: 1.0,     // full resolution bloom
+        particleSegments: 6,
+        particleRings: 4,
+        maxParticles: 50000,
+        pixelRatio: Math.min(window.devicePixelRatio, 2),
+    },
+};
+
+/**
+ * Auto-detect GPU tier based on renderer info
+ */
+export function detectQuality(renderer) {
+    const gl = renderer.getContext();
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+
+    let gpuName = 'unknown';
+    if (debugInfo) {
+        gpuName = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase();
+    }
+
+    console.log(`[GPU] Detected: ${gpuName}`);
+
+    // Integrated GPU keywords
+    const iGPU = [
+        'intel', 'uhd', 'iris', 'hd graphics',
+        'adreno', 'mali', 'powervr', 'apple gpu',
+        'swiftshader', 'llvmpipe', 'softpipe',
+    ];
+
+    // Low-end discrete
+    const lowDiscrete = [
+        'geforce mx', 'geforce gt', 'radeon rx 5[0-3]', 'radeon 5[0-5]0',
+    ];
+
+    if (iGPU.some(k => gpuName.includes(k))) {
+        console.log('[GPU] Tier: LOW (integrated GPU detected)');
+        return QUALITY.LOW;
+    }
+
+    if (lowDiscrete.some(k => gpuName.match(new RegExp(k)))) {
+        console.log('[GPU] Tier: MEDIUM (low-end discrete GPU)');
+        return QUALITY.MEDIUM;
+    }
+
+    console.log('[GPU] Tier: HIGH');
+    return QUALITY.HIGH;
+}
+
 export class NeonRenderer {
-    constructor(renderer, scene, camera) {
+    constructor(renderer, scene, camera, quality = null) {
         this.renderer = renderer;
         this.scene = scene;
         this.camera = camera;
+
+        // Auto-detect quality if not specified
+        this.quality = quality || detectQuality(renderer);
+
+        // Apply pixel ratio
+        renderer.setPixelRatio(this.quality.pixelRatio);
 
         // Setup renderer for neon effect
         renderer.toneMapping = THREE.ReinhardToneMapping;
@@ -48,18 +133,21 @@ export class NeonRenderer {
         const renderPass = new RenderPass(scene, camera);
         this.composer.addPass(renderPass);
 
+        const q = this.quality;
+        const bloomW = Math.floor(size.x * q.bloomResScale);
+        const bloomH = Math.floor(size.y * q.bloomResScale);
+
         this.bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(size.x, size.y),
-            1.8,   // strength
-            0.4,   // radius
-            0.1    // threshold
+            new THREE.Vector2(bloomW, bloomH),
+            q.bloomStrength,
+            q.bloomRadius,
+            q.bloomThreshold,
         );
         this.composer.addPass(this.bloomPass);
     }
 
     render() {
         if (this.renderer.xr.isPresenting) {
-            // In XR mode, render directly (bloom doesn't work with WebXR)
             this.renderer.render(this.scene, this.camera);
         } else {
             this.composer.render();
@@ -68,7 +156,23 @@ export class NeonRenderer {
 
     onResize(width, height) {
         this.composer.setSize(width, height);
-        this.bloomPass.resolution.set(width, height);
+        const q = this.quality;
+        this.bloomPass.resolution.set(
+            Math.floor(width * q.bloomResScale),
+            Math.floor(height * q.bloomResScale),
+        );
+    }
+
+    setQuality(quality) {
+        this.quality = quality;
+        this.renderer.setPixelRatio(quality.pixelRatio);
+        this.bloomPass.strength = quality.bloomStrength;
+        this.bloomPass.radius = quality.bloomRadius;
+        this.bloomPass.threshold = quality.bloomThreshold;
+
+        const size = new THREE.Vector2();
+        this.renderer.getSize(size);
+        this.onResize(size.x, size.y);
     }
 
     setBloomParams(strength, radius, threshold) {

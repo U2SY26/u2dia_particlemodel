@@ -2,12 +2,11 @@ import * as THREE from 'three';
 import { ParticleSystem } from './ParticleSystem.js';
 import { PhysicsEngine } from './PhysicsEngine.js';
 import { ArchitectureGenerator } from './ArchitectureGenerator.js';
-import { NeonRenderer } from './NeonRenderer.js';
+import { NeonRenderer, detectQuality, QUALITY } from './NeonRenderer.js';
 import { XRController } from './XRController.js';
 import { SimulationManager } from './SimulationManager.js';
 
 // ==================== CONFIGURATION ====================
-const MAX_PARTICLES = 50000;
 const GROUND_SPREAD = 25;
 
 // ==================== APPLICATION ====================
@@ -29,7 +28,6 @@ class App {
             antialias: true,
             powerPreference: 'high-performance',
         });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
         const container = document.getElementById('canvas-container');
         this.renderer.setSize(container.clientWidth, container.clientHeight);
@@ -43,14 +41,20 @@ class App {
         this.camera.position.set(8, 6, 12);
         this.camera.lookAt(0, 3, 0);
 
-        // Initialize modules
-        this.neonRenderer = new NeonRenderer(this.renderer, this.scene, this.camera);
-        this.particleSystem = new ParticleSystem(this.scene, MAX_PARTICLES);
+        // Auto-detect GPU quality
+        this.quality = detectQuality(this.renderer);
+        const MAX_PARTICLES = this.quality.maxParticles;
+        console.log(`[Quality] ${this.quality.label} - Max particles: ${MAX_PARTICLES}`);
+
+        // Initialize modules with quality settings
+        this.neonRenderer = new NeonRenderer(this.renderer, this.scene, this.camera, this.quality);
+        this.particleSystem = new ParticleSystem(this.scene, MAX_PARTICLES, this.quality);
         this.physics = new PhysicsEngine(MAX_PARTICLES);
         this.archGen = new ArchitectureGenerator();
         this.xrController = new XRController(this.renderer, this.scene, this.camera);
 
-        // Spawn initial particles
+        // Spawn initial particles (clamped to quality tier max)
+        this.activeParticleCount = Math.min(this.activeParticleCount, MAX_PARTICLES);
         const initialPositions = this.particleSystem.spawnOnGround(this.activeParticleCount, GROUND_SPREAD);
         this.physics.initPositions(initialPositions, this.activeParticleCount);
 
@@ -71,6 +75,7 @@ class App {
 
         this._updateStatus('Ready');
         this._updateParticleCount(this.activeParticleCount);
+        this._updateQualityBadge();
     }
 
     _setupUI() {
@@ -255,6 +260,23 @@ class App {
 
     _updateParticleCount(count) {
         document.getElementById('particle-count').textContent = count.toLocaleString();
+    }
+
+    _updateQualityBadge() {
+        const badge = document.getElementById('quality-badge');
+        badge.textContent = this.quality.label;
+        badge.className = this.quality.label.toLowerCase();
+
+        // Click to cycle quality
+        badge.onclick = () => {
+            const tiers = [QUALITY.LOW, QUALITY.MEDIUM, QUALITY.HIGH];
+            const idx = tiers.findIndex(t => t.label === this.quality.label);
+            const next = tiers[(idx + 1) % tiers.length];
+            this.quality = next;
+            this.neonRenderer.setQuality(next);
+            this._updateQualityBadge();
+            console.log(`[Quality] Switched to ${next.label}`);
+        };
     }
 }
 

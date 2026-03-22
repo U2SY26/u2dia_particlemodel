@@ -1,23 +1,26 @@
 import * as THREE from 'three';
 
 export class ParticleSystem {
-    constructor(scene, maxCount) {
+    constructor(scene, maxCount, quality = null) {
         this.scene = scene;
         this.maxCount = maxCount;
         this.activeCount = 0;
 
-        // Low-poly sphere for each particle
-        const geometry = new THREE.SphereGeometry(0.03, 6, 4);
+        // Quality-adaptive geometry
+        const segments = quality ? quality.particleSegments : 6;
+        const rings = quality ? quality.particleRings : 4;
+        const geometry = new THREE.SphereGeometry(0.03, segments, rings);
 
-        // Neon emissive material
+        // Neon emissive material - disable transparency for iGPU
+        const isLowQuality = quality && quality.label === 'LOW';
         this.material = new THREE.MeshStandardMaterial({
             emissive: new THREE.Color(0x00ffff),
-            emissiveIntensity: 2.0,
+            emissiveIntensity: isLowQuality ? 1.5 : 2.0,
             color: 0x001111,
-            metalness: 0.5,
-            roughness: 0.2,
-            transparent: true,
-            opacity: 0.9,
+            metalness: isLowQuality ? 0.2 : 0.5,
+            roughness: isLowQuality ? 0.5 : 0.2,
+            transparent: !isLowQuality,
+            opacity: isLowQuality ? 1.0 : 0.9,
         });
 
         this.mesh = new THREE.InstancedMesh(geometry, this.material, maxCount);
@@ -47,10 +50,9 @@ export class ParticleSystem {
         for (let i = 0; i < count; i++) {
             const idx = i * 3;
             this.positions[idx] = (Math.random() - 0.5) * spread;
-            this.positions[idx + 1] = Math.random() * 0.3; // slightly above ground
+            this.positions[idx + 1] = Math.random() * 0.3;
             this.positions[idx + 2] = (Math.random() - 0.5) * spread;
 
-            // Base neon cyan with slight variation
             this.color.setHSL(0.5 + (Math.random() - 0.5) * 0.05, 1.0, 0.5);
             this.mesh.instanceColor.setXYZ(i, this.color.r, this.color.g, this.color.b);
         }
@@ -71,7 +73,6 @@ export class ParticleSystem {
                 physPositions[idx + 2]
             );
 
-            // Subtle scale variation from velocity for vibration visual
             if (physVelocities) {
                 const vx = physVelocities[idx];
                 const vy = physVelocities[idx + 1];
@@ -124,7 +125,6 @@ export class ParticleSystem {
             const load = loads ? loads[i] : 0;
             const [h, s, l] = ROLE_COLORS[Math.min(role, 5)];
 
-            // Load-bearing particles shift toward warmer hues
             const hShift = load * 0.15;
             this.color.setHSL(h - hShift, s, l + load * 0.1);
             this.mesh.instanceColor.setXYZ(i, this.color.r, this.color.g, this.color.b);

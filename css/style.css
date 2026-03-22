@@ -436,6 +436,27 @@ body {
     margin-right: 15px;
 }
 
+#quality-badge {
+    background: var(--cyan-faint);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: all 0.15s;
+}
+
+#quality-badge:hover {
+    border-color: var(--cyan);
+    background: var(--cyan-glow);
+}
+
+#quality-badge.low { color: #ff8844; border-color: #ff884444; }
+#quality-badge.medium { color: #ffff44; border-color: #ffff4444; }
+#quality-badge.high { color: var(--accent-green); border-color: rgba(0,255,136,0.3); }
+
 #status-bar {
     display: flex;
     gap: 20px;
