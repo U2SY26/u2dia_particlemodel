@@ -13,78 +13,89 @@ export class ArchitectureGenerator {
      * Main entry: parse prompt and generate structure
      * Returns { targets, assignments, connections, loads, roles, metadata }
      */
+    _generateTemplate(params) {
+        switch (params.type) {
+            case 'house': return this._templateHouse(params);
+            case 'tower': return this._templateTower(params);
+            case 'bridge': return this._templateBridge(params);
+            case 'cathedral': return this._templateCathedral(params);
+            case 'pyramid': return this._templatePyramid(params);
+            case 'skyscraper': return this._templateSkyscraper(params);
+            case 'dome': return this._templateDome(params);
+            case 'arch': return this._templateArch(params);
+            case 'temple': return this._templateTemple(params);
+            case 'castle': return this._templateCastle(params);
+            case 'wall': return this._templateWall(params);
+            case 'stadium': return this._templateStadium(params);
+            case 'cube': return this._templateCube(params);
+            case 'sphere': return this._templateSphere(params);
+            default: return this._templateHouse(params);
+        }
+    }
+
     generate(promptText, totalParticles) {
         const prompt = promptText.toLowerCase().trim();
         const params = this._parsePrompt(prompt);
+        const baseSpacing = 0.10;
 
-        // Generate structural particles
-        let structure;
-        switch (params.type) {
-            case 'house':
-                structure = this._templateHouse(params);
-                break;
-            case 'tower':
-                structure = this._templateTower(params);
-                break;
-            case 'bridge':
-                structure = this._templateBridge(params);
-                break;
-            case 'cathedral':
-                structure = this._templateCathedral(params);
-                break;
-            case 'pyramid':
-                structure = this._templatePyramid(params);
-                break;
-            case 'skyscraper':
-                structure = this._templateSkyscraper(params);
-                break;
-            case 'dome':
-                structure = this._templateDome(params);
-                break;
-            case 'arch':
-                structure = this._templateArch(params);
-                break;
-            case 'temple':
-                structure = this._templateTemple(params);
-                break;
-            case 'castle':
-                structure = this._templateCastle(params);
-                break;
-            case 'wall':
-                structure = this._templateWall(params);
-                break;
-            case 'stadium':
-                structure = this._templateStadium(params);
-                break;
-            case 'cube':
-                structure = this._templateCube(params);
-                break;
-            case 'sphere':
-                structure = this._templateSphere(params);
-                break;
-            default:
-                structure = this._templateHouse(params);
+        // Auto-fit: iteratively scale up + reduce spacing until all particles are used.
+        // Prefers bigger structures over denser packing for visual clarity.
+        const minSpacing = 0.04;
+
+        this.spacing = baseSpacing;
+        let count = this._generateTemplate(params).positions.length / 3;
+
+        // Iterate: scale up, then binary-search spacing
+        for (let round = 0; round < 4 && count < totalParticles * 0.95; round++) {
+            const deficit = totalParticles / Math.max(count, 1);
+            params.scale *= Math.pow(deficit, 0.4); // grow structure
+
+            // Binary-search spacing within this scale
+            let lo = minSpacing, hi = Math.max(this.spacing, baseSpacing);
+            for (let iter = 0; iter < 8; iter++) {
+                const mid = (lo + hi) / 2;
+                this.spacing = mid;
+                const c = this._generateTemplate(params).positions.length / 3;
+                if (c < totalParticles) {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            this.spacing = (lo + hi) / 2;
+            count = this._generateTemplate(params).positions.length / 3;
         }
 
-        // Only structural particles get target assignments
-        const structCount = structure.positions.length / 3;
+        let structure = this._generateTemplate(params);
+        let structCount = structure.positions.length / 3;
+
+        // Trim if overshot
+        if (structCount > totalParticles) {
+            structure.positions = new Float32Array(structure.positions.buffer, 0, totalParticles * 3);
+            structure.roles = new Uint8Array(structure.roles.buffer, 0, totalParticles);
+            structure.loads = new Float32Array(structure.loads.buffer, 0, totalParticles);
+            structure.connections = structure.connections.filter(c => c.i < totalParticles && c.j < totalParticles);
+            structCount = totalParticles;
+        }
+
         const assignments = new Uint32Array(structCount);
         for (let i = 0; i < structCount; i++) {
             assignments[i] = i;
         }
 
-        // Roles and loads for ALL particles (ambient ones keep role=0, load=0)
         const allRoles = new Uint8Array(totalParticles);
         const allLoads = new Float32Array(totalParticles);
-        allRoles.set(structure.roles);
-        allLoads.set(structure.loads);
+        allRoles.set(structure.roles.subarray(0, Math.min(structCount, totalParticles)));
+        allLoads.set(structure.loads.subarray(0, Math.min(structCount, totalParticles)));
 
-        // Calculate load-bearing weights for structural particles
         this._calculateLoads(allLoads, structure.connections, allRoles, structCount);
 
+        // Reset for next call
+        this.spacing = baseSpacing;
+
         return {
-            targets: structure.positions,    // Only structural positions as targets
-            assignments: assignments,         // Only structural particles get assigned
+            targets: structure.positions,
+            assignments,
             connections: structure.connections,
             loads: allLoads,
             roles: allRoles,
@@ -830,8 +841,12 @@ export class ArchitectureGenerator {
         const roles = [];
         const connections = [];
 
+        // Dynamic counts based on spacing — denser spacing = more elements
+        const basePoints = Math.max(12, Math.round(2 * Math.PI * r / sp));
+        const ribCount = Math.max(4, Math.round(Math.PI * r / (sp * 3)));
+        const ringCount = Math.max(3, Math.round(Math.PI * r / (sp * 4)));
+
         // Base ring
-        const basePoints = 24;
         const baseStartIdx = positions.length / 3;
         for (let i = 0; i < basePoints; i++) {
             const angle = (2 * Math.PI * i) / basePoints;
@@ -848,27 +863,15 @@ export class ArchitectureGenerator {
             });
         }
 
-        // Support columns at base
-        for (let i = 0; i < basePoints; i += 3) {
-            const angle = (2 * Math.PI * i) / basePoints;
-            const x = Math.cos(angle) * r;
-            const z = Math.sin(angle) * r;
-            const col = this._addParticlesAlongLine(positions, roles, 2, x, 0, z, x, 0, z, sp);
-            // Column is already at base; these are more like anchor points
-        }
-
         // Meridian ribs
-        const ribCount = 8;
         for (let i = 0; i < ribCount; i++) {
             const angle = (2 * Math.PI * i) / ribCount;
-            const arcPositions = [];
-            const arcRoles = [];
-            const segCount = 16;
+            const segCount = Math.max(8, Math.round(Math.PI * r / (2 * sp)));
             const startIdx = positions.length / 3;
 
             for (let j = 0; j <= segCount; j++) {
                 const t = j / segCount;
-                const phi = t * Math.PI / 2; // 0 to PI/2 (quarter circle)
+                const phi = t * Math.PI / 2;
                 const radius = r * Math.cos(phi);
                 const y = h * Math.sin(phi);
                 const x = Math.cos(angle) * radius;
@@ -889,13 +892,12 @@ export class ArchitectureGenerator {
         }
 
         // Parallel rings at different heights
-        const ringCount = 5;
         for (let ri = 1; ri < ringCount; ri++) {
             const t = ri / ringCount;
             const phi = t * Math.PI / 2;
             const ringR = r * Math.cos(phi);
             const ringY = h * Math.sin(phi);
-            const ringPts = Math.max(6, Math.floor(basePoints * (1 - t)));
+            const ringPts = Math.max(6, Math.round(2 * Math.PI * ringR / sp));
             const ringStart = positions.length / 3;
 
             for (let i = 0; i < ringPts; i++) {
@@ -950,7 +952,7 @@ export class ArchitectureGenerator {
         }
 
         // Cross beams between the two arches
-        const crossCount = 12;
+        const crossCount = Math.max(6, Math.round(w / sp));
         for (let i = 0; i <= crossCount; i++) {
             const t = i / crossCount;
             const angle = Math.PI * t;
@@ -1335,17 +1337,20 @@ export class ArchitectureGenerator {
         const roles = [];
         const connections = [];
 
+        // Dynamic counts based on spacing
+        const meridianCount = Math.max(6, Math.round(Math.PI * r / (sp * 2)));
+        const segCount = Math.max(8, Math.round(Math.PI * r / sp));
+        const ringCount = Math.max(4, Math.round(Math.PI * r / (sp * 3)));
+
         // Meridians
-        const meridianCount = 12;
         for (let m = 0; m < meridianCount; m++) {
             const phi = (2 * Math.PI * m) / meridianCount;
-            const segCount = 20;
             const startIdx = positions.length / 3;
 
             for (let j = 0; j <= segCount; j++) {
                 const theta = Math.PI * (j / segCount);
                 const x = r * Math.sin(theta) * Math.cos(phi);
-                const y = r * Math.cos(theta) + r; // offset so bottom touches ground
+                const y = r * Math.cos(theta) + r;
                 const z = r * Math.sin(theta) * Math.sin(phi);
                 positions.push(x, y, z);
                 roles.push(5);
@@ -1363,12 +1368,11 @@ export class ArchitectureGenerator {
         }
 
         // Parallel rings
-        const ringCount = 8;
         for (let ri = 1; ri < ringCount; ri++) {
             const theta = Math.PI * (ri / ringCount);
             const ringR = r * Math.sin(theta);
             const ringY = r * Math.cos(theta) + r;
-            const ringPts = Math.max(8, Math.floor(meridianCount * Math.sin(theta) * 2));
+            const ringPts = Math.max(6, Math.round(2 * Math.PI * ringR / sp));
             const ringStart = positions.length / 3;
 
             for (let i = 0; i < ringPts; i++) {

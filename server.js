@@ -156,6 +156,44 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// ==================== COMMUNITY CONTRIBUTIONS ====================
+
+const CONTRIB_FILE = join(DATA_DIR, 'contributions.json');
+if (!existsSync(CONTRIB_FILE)) {
+    writeFileSync(CONTRIB_FILE, JSON.stringify({ contributions: [], version: 1 }));
+}
+
+app.get('/api/contributions', (req, res) => {
+    const data = JSON.parse(readFileSync(CONTRIB_FILE, 'utf-8'));
+    res.json(data.contributions);
+});
+
+app.post('/api/contributions', (req, res) => {
+    const data = JSON.parse(readFileSync(CONTRIB_FILE, 'utf-8'));
+    const contrib = {
+        id: uuidv4(),
+        author: req.body.author || 'Anonymous',
+        domain: req.body.domain || 'other',
+        type: req.body.type || 'material',
+        content: req.body.content || '',
+        status: 'pending', // pending → reviewed → accepted/rejected
+        createdAt: new Date().toISOString(),
+        votes: 0,
+    };
+    data.contributions.push(contrib);
+    writeFileSync(CONTRIB_FILE, JSON.stringify(data, null, 2));
+    res.status(201).json(contrib);
+});
+
+app.post('/api/contributions/:id/vote', (req, res) => {
+    const data = JSON.parse(readFileSync(CONTRIB_FILE, 'utf-8'));
+    const contrib = data.contributions.find(c => c.id === req.params.id);
+    if (!contrib) return res.status(404).json({ error: 'Not found' });
+    contrib.votes += (req.body.direction === 'down' ? -1 : 1);
+    writeFileSync(CONTRIB_FILE, JSON.stringify(data, null, 2));
+    res.json(contrib);
+});
+
 // ==================== FUTURE: WORLD MODEL ENDPOINTS ====================
 
 app.post('/api/worldmodel/export', (req, res) => {

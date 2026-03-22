@@ -11,12 +11,14 @@ export class XRController {
         // Enable WebXR
         renderer.xr.enabled = true;
 
-        // Create VR button
+        // Create VR button — positioned above bottom panel
         const vrButton = VRButton.createButton(renderer);
         vrButton.style.fontFamily = "'Courier New', monospace";
         vrButton.style.borderColor = '#00ffff';
         vrButton.style.color = '#00ffff';
         vrButton.style.background = 'rgba(0, 20, 30, 0.8)';
+        vrButton.style.bottom = '90px';
+        vrButton.style.zIndex = '100';
         document.body.appendChild(vrButton);
 
         // Orbit controls for non-XR mode

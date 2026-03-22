@@ -9,10 +9,10 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 export const QUALITY = {
     LOW: {
         label: 'LOW',
-        bloomStrength: 0.6,
-        bloomRadius: 0.15,
-        bloomThreshold: 0.2,
-        bloomResScale: 0.25,    // quarter resolution bloom
+        bloomStrength: 0.3,
+        bloomRadius: 0.1,
+        bloomThreshold: 0.4,
+        bloomResScale: 0.25,
         particleSegments: 4,
         particleRings: 3,
         maxParticles: 10000,
@@ -20,10 +20,10 @@ export const QUALITY = {
     },
     MEDIUM: {
         label: 'MEDIUM',
-        bloomStrength: 1.2,
-        bloomRadius: 0.3,
-        bloomThreshold: 0.15,
-        bloomResScale: 0.5,     // half resolution bloom
+        bloomStrength: 0.6,
+        bloomRadius: 0.2,
+        bloomThreshold: 0.3,
+        bloomResScale: 0.5,
         particleSegments: 5,
         particleRings: 3,
         maxParticles: 20000,
@@ -31,10 +31,10 @@ export const QUALITY = {
     },
     HIGH: {
         label: 'HIGH',
-        bloomStrength: 1.8,
-        bloomRadius: 0.4,
-        bloomThreshold: 0.1,
-        bloomResScale: 1.0,     // full resolution bloom
+        bloomStrength: 0.9,
+        bloomRadius: 0.3,
+        bloomThreshold: 0.2,
+        bloomResScale: 1.0,
         particleSegments: 6,
         particleRings: 4,
         maxParticles: 50000,
@@ -96,7 +96,7 @@ export class NeonRenderer {
 
         // Setup renderer for neon effect
         renderer.toneMapping = THREE.ReinhardToneMapping;
-        renderer.toneMappingExposure = 1.5;
+        renderer.toneMappingExposure = 1.0;
 
         // Setup scene atmosphere
         scene.background = new THREE.Color(0x000508);

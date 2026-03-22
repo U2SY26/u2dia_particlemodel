@@ -27,39 +27,126 @@ export class PhysicsEngine {
         this.isTransitioning = false;
         this.stiffnessRamp = 0; // 0 to 1
 
-        // Constants
-        this.GRAVITY = -9.81;
+        // Constants (SI units)
+        this.GRAVITY = -9.81;       // m/s²
         this.GROUND_Y = 0;
-        this.DAMPING = 0.97;
+        this.DAMPING = 0.97;        // Verlet velocity retention (0–1)
         this.VIBRATION_AMP = 0.003;
-        this.MAX_SUBSTEP = 0.005;
-        this.TARGET_SPRING_K = 20.0;
-        this.BOUNDARY = 60;
+        this.MAX_SUBSTEP = 0.005;   // seconds
+        this.TARGET_SPRING_K = 20.0;// N/m (overridden by material)
+        this.BOUNDARY = 60;         // m
+        this.PARTICLE_SPACING = 0.06; // m — current spacing between particles
 
-        // Environment parameters (set by SimulationManager)
-        this.windX = 0;
+        // Environment parameters
+        this.windX = 0;             // m/s² (force per unit mass)
         this.windY = 0;
         this.windZ = 0;
-        this.turbulence = 0;
-        this.viscosity = 0;
-        this.temperature = 293;
-        this.friction = 0.8;
-        this.bounciness = 0.3;
+        this.turbulence = 0;        // m/s² amplitude
+        this.viscosity = 0;         // drag coefficient (1/s)
+        this.temperature = 293;     // K
+        this.friction = 0.8;        // ground kinetic friction coefficient (0–1)
+        this.bounciness = 0.3;      // coefficient of restitution (0–1)
 
-        // Material parameters
-        this.foundation = 5.0;
-        this.density = 2.4;
-        this.elasticity = 0.3;
-        this.yieldStrength = 50;
+        // Material properties (real SI values)
+        this.materialDensity = 2400;     // kg/m³
+        this.youngsModulus = 25e9;       // Pa
+        this.materialYieldStrength = 25e6; // Pa
+        this.dampingRatio = 0.05;        // ζ (zeta), dimensionless
+        this.thermalExpansion = 10e-6;   // 1/K
+        this.poissonRatio = 0.20;
+
+        // Foundation / ground
+        this.foundationDepth = 2.0;      // m — deeper = more stable
+        this.groundBearingCapacity = 5e6;// Pa
+        this.groundSettlement = 0.001;   // m per MN/m²
+        this.groundDamping = 0.94;
 
         // Hazard parameters
-        this.seismic = 0;
-        this.seismicFreq = 2.0;
-        this.snowLoad = 0;
-        this.floodLevel = 0;
+        this.seismic = 0;           // m/s² peak acceleration
+        this.seismicFreq = 2.0;     // Hz
+        this.snowLoad = 0;          // kN/m² (→ N/m²×1000)
+        this.floodLevel = 0;        // m above ground
 
-        // Internal time accumulator for seismic wave
+        // Derived (updated when material changes)
+        this._particleMass = 1.0;
+        this._springK = 20.0;
+        this._critDamp = 0.5;
+
+        // Internal time accumulator
         this._totalTime = 0;
+    }
+
+    /**
+     * Recalculate derived physics from current material properties.
+     * Call this whenever material, spacing, or density changes.
+     */
+    updateDerivedPhysics() {
+        const dt = this.MAX_SUBSTEP;
+
+        // === Mass: scale density to simulation range ===
+        // Real density (kg/m³) → simulation mass.
+        // Reference: concrete 2400 kg/m³ → mass 1.0
+        this._particleMass = Math.max(0.1, this.materialDensity / 2400);
+
+        // === Stiffness: logarithmic scaling of Young's modulus ===
+        // Real range: 1e3 Pa (muscle) → 1e12 Pa (diamond) = 9 orders of magnitude
+        // Simulation range: 2 → 200 (stable for Verlet at dt=0.005)
+        // Use log10 mapping: E=1e3→2, E=25e9→20, E=200e9→40, E=1e12→100
+        const logE = Math.log10(Math.max(this.youngsModulus, 1));
+        this._springK = Math.max(2, Math.min(200, (logE - 3) * 10));
+
+        // === Stability cap: Verlet requires k * dt² / m < 1 ===
+        const kMax = this._particleMass / (dt * dt) * 0.8; // 80% safety margin
+        this._springK = Math.min(this._springK, kMax);
+
+        // === Damping ===
+        this._critDamp = 2 * Math.sqrt(this._springK * this._particleMass) * this.dampingRatio;
+        this.DAMPING = Math.max(0.80, Math.min(0.999, 1.0 - this.dampingRatio * 2));
+
+        // Update all particle masses
+        for (let i = 0; i < this.activeCount; i++) {
+            this.mass[i] = this._particleMass;
+            this.invMass[i] = 1.0 / this._particleMass;
+        }
+
+        // Update target spring stiffness
+        this.TARGET_SPRING_K = this._springK;
+        const foundationMul = Math.sqrt(Math.max(this.foundationDepth, 0.5) / 2.0);
+        for (let i = 0; i < this.activeCount; i++) {
+            if (this.hasTarget[i]) {
+                this.targetStiffness[i] = this._springK * foundationMul;
+            }
+        }
+
+        // Update structural spring stiffness
+        for (let si = 0; si < this.springs.length; si++) {
+            this.springs[si].stiffness = this._springK;
+            this.springs[si].damping = this._critDamp;
+        }
+    }
+
+    /**
+     * Apply a complete material property set (from Materials.js)
+     */
+    applyMaterial(props) {
+        if (props.density !== undefined) this.materialDensity = props.density;
+        if (props.youngsModulus !== undefined) this.youngsModulus = props.youngsModulus;
+        if (props.yieldStrength !== undefined) this.materialYieldStrength = props.yieldStrength;
+        if (props.dampingRatio !== undefined) this.dampingRatio = props.dampingRatio;
+        if (props.thermalExpansion !== undefined) this.thermalExpansion = props.thermalExpansion;
+        if (props.poissonRatio !== undefined) this.poissonRatio = props.poissonRatio;
+        this.updateDerivedPhysics();
+    }
+
+    /**
+     * Apply ground/surface properties
+     */
+    applyGround(props) {
+        if (props.friction !== undefined) this.friction = props.friction;
+        if (props.bounciness !== undefined) this.bounciness = props.bounciness;
+        if (props.bearingCapacity !== undefined) this.groundBearingCapacity = props.bearingCapacity;
+        if (props.settlement !== undefined) this.groundSettlement = props.settlement;
+        if (props.damping !== undefined) this.groundDamping = props.damping;
     }
 
     initPositions(positions, count) {
@@ -301,6 +388,45 @@ export class PhysicsEngine {
             this.acc[jj + 2] -= totalFz * this.invMass[j];
         }
 
+        // Thermal expansion — gentle outward push when T ≠ 293K
+        if (this.thermalExpansion > 0 && Math.abs(this.temperature - 293) > 5) {
+            const deltaT = this.temperature - 293;
+            // Scale: thermalExpansion ~1e-5/K → strain ~1e-3 at ΔT=100K
+            // Apply as gentle acceleration proportional to distance from origin
+            const thermalAcc = this.thermalExpansion * deltaT * 500;
+            // Cap to prevent instability
+            const cappedAcc = Math.max(-2, Math.min(2, thermalAcc));
+            for (let i = 0; i < n; i++) {
+                if (!this.hasTarget[i]) continue;
+                const idx = i * 3;
+                this.acc[idx] += this.targetPos[idx] * cappedAcc;
+                this.acc[idx + 1] += this.targetPos[idx + 1] * cappedAcc;
+                this.acc[idx + 2] += this.targetPos[idx + 2] * cappedAcc;
+            }
+        }
+
+        // Yield check — if acceleration exceeds threshold, release particle
+        // Scale yield strength: log mapping like stiffness
+        if (this.materialYieldStrength > 0) {
+            // Higher yield strength → harder to break
+            // Map MPa range to acceleration threshold
+            const logY = Math.log10(Math.max(this.materialYieldStrength, 1));
+            const yieldThreshold = Math.max(50, (logY - 4) * 80); // ~50–500 m/s²
+            for (let i = 0; i < n; i++) {
+                if (!this.hasTarget[i]) continue;
+                const idx = i * 3;
+                const aMag = Math.sqrt(
+                    this.acc[idx]*this.acc[idx] +
+                    this.acc[idx+1]*this.acc[idx+1] +
+                    this.acc[idx+2]*this.acc[idx+2]
+                );
+                if (aMag > yieldThreshold) {
+                    this.hasTarget[i] = 0;
+                    this.targetStiffness[i] = 0;
+                }
+            }
+        }
+
         // Vibration noise
         const vibAmp = this.VIBRATION_AMP / dt;
         for (let i = 0; i < n; i++) {
@@ -336,17 +462,32 @@ export class PhysicsEngine {
             this.pos[idx + 2] = newZ;
         }
 
-        // Ground collision
-        const fric = 1.0 - this.friction;
-        const bounce = this.bounciness;
+        // Ground collision with real surface physics
+        const mu = this.friction;           // kinetic friction coefficient
+        const cor = this.bounciness;        // coefficient of restitution
+        const settlement = this.groundSettlement;
+        const groundY = this.GROUND_Y - settlement * this._particleMass * Math.abs(this.GRAVITY) * 0.001;
         for (let i = 0; i < n; i++) {
-            const idx = i * 3 + 1;
-            if (this.pos[idx] < this.GROUND_Y) {
-                this.pos[idx] = this.GROUND_Y;
-                this.prevPos[idx] = this.GROUND_Y + this.vel[idx] * bounce * dt;
-                this.vel[idx - 1] *= fric; // friction
-                this.vel[idx] *= -bounce;  // bounce
-                this.vel[idx + 1] *= fric;
+            const iy = i * 3 + 1;
+            if (this.pos[iy] < groundY) {
+                this.pos[iy] = groundY;
+                // Normal impulse (restitution)
+                const vy = this.vel[iy];
+                this.prevPos[iy] = groundY + vy * cor * dt;
+                this.vel[iy] = -vy * cor;
+                // Tangential friction: F_friction = μ × |F_normal|
+                // In Verlet: reduce tangential velocity proportionally
+                const ix = i * 3;
+                const iz = i * 3 + 2;
+                const tanSpeed = Math.sqrt(this.vel[ix] * this.vel[ix] + this.vel[iz] * this.vel[iz]);
+                if (tanSpeed > 0.001) {
+                    const normalForce = Math.abs(vy) * this.mass[i] / dt;
+                    const frictionForce = mu * normalForce;
+                    const frictionDecel = frictionForce / this.mass[i] * dt;
+                    const reduction = Math.min(1.0, frictionDecel / tanSpeed);
+                    this.vel[ix] *= (1.0 - reduction);
+                    this.vel[iz] *= (1.0 - reduction);
+                }
             }
         }
 

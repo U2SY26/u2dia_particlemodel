@@ -15,12 +15,12 @@ export class ParticleSystem {
         const isLowQuality = quality && quality.label === 'LOW';
         this.material = new THREE.MeshStandardMaterial({
             emissive: new THREE.Color(0x00ffff),
-            emissiveIntensity: isLowQuality ? 1.5 : 2.0,
-            color: 0x001111,
-            metalness: isLowQuality ? 0.2 : 0.5,
-            roughness: isLowQuality ? 0.5 : 0.2,
+            emissiveIntensity: isLowQuality ? 0.6 : 0.8,
+            color: 0x002222,
+            metalness: isLowQuality ? 0.2 : 0.4,
+            roughness: isLowQuality ? 0.6 : 0.4,
             transparent: !isLowQuality,
-            opacity: isLowQuality ? 1.0 : 0.9,
+            opacity: isLowQuality ? 1.0 : 0.85,
         });
 
         this.mesh = new THREE.InstancedMesh(geometry, this.material, maxCount);
@@ -41,6 +41,13 @@ export class ParticleSystem {
         // Position data (shared with physics)
         this.positions = new Float32Array(maxCount * 3);
         this.scales = new Float32Array(maxCount).fill(1.0);
+
+        // Visual settings
+        this.colorMode = 'role';
+        this.primaryColor = new THREE.Color(0x00ffff);
+        this.secondaryColor = new THREE.Color(0xff00ff);
+        this.currentRoles = null;
+        this.currentLoads = null;
     }
 
     spawnOnGround(count, spread = 20) {
@@ -64,6 +71,8 @@ export class ParticleSystem {
     }
 
     updateFromPhysics(physPositions, physVelocities) {
+        let velocityColorDirty = false;
+
         for (let i = 0; i < this.activeCount; i++) {
             const idx = i * 3;
 
@@ -80,6 +89,14 @@ export class ParticleSystem {
                 const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
                 const s = 0.8 + Math.min(speed * 0.5, 0.6);
                 this.dummy.scale.setScalar(s);
+
+                // Velocity-based coloring
+                if (this.colorMode === 'velocity') {
+                    const t = Math.min(speed / 10, 1);
+                    this.color.copy(this.primaryColor).lerp(this.secondaryColor, t);
+                    this.mesh.instanceColor.setXYZ(i, this.color.r, this.color.g, this.color.b);
+                    velocityColorDirty = true;
+                }
             } else {
                 this.dummy.scale.setScalar(1.0);
             }
@@ -89,6 +106,7 @@ export class ParticleSystem {
         }
 
         this.mesh.instanceMatrix.needsUpdate = true;
+        if (velocityColorDirty) this.mesh.instanceColor.needsUpdate = true;
     }
 
     updateInstanceMatrices() {
@@ -111,26 +129,81 @@ export class ParticleSystem {
      * roles: 0=ambient, 1=foundation, 2=column, 3=beam, 4=brace, 5=arch
      */
     setParticleColors(roles, loads) {
-        const ROLE_COLORS = [
-            [0.50, 1.0, 0.5],   // 0: ambient - cyan
-            [0.08, 1.0, 0.6],   // 1: foundation - warm orange
-            [0.55, 1.0, 0.55],  // 2: column - cyan-blue
-            [0.83, 1.0, 0.55],  // 3: beam - magenta
-            [0.15, 1.0, 0.55],  // 4: brace - yellow
-            [0.70, 1.0, 0.55],  // 5: arch - purple
-        ];
+        this.currentRoles = roles;
+        this.currentLoads = loads;
+        this.applyColorMode();
+    }
 
-        for (let i = 0; i < this.activeCount; i++) {
-            const role = roles ? (roles[i] || 0) : 0;
-            const load = loads ? loads[i] : 0;
-            const [h, s, l] = ROLE_COLORS[Math.min(role, 5)];
+    applyColorMode() {
+        const roles = this.currentRoles;
+        const loads = this.currentLoads;
 
-            const hShift = load * 0.15;
-            this.color.setHSL(h - hShift, s, l + load * 0.1);
-            this.mesh.instanceColor.setXYZ(i, this.color.r, this.color.g, this.color.b);
+        if (this.colorMode === 'single') {
+            for (let i = 0; i < this.activeCount; i++) {
+                this.mesh.instanceColor.setXYZ(i, this.primaryColor.r, this.primaryColor.g, this.primaryColor.b);
+            }
+        } else if (this.colorMode === 'random') {
+            for (let i = 0; i < this.activeCount; i++) {
+                this.color.setHSL(Math.random(), 0.9, 0.5);
+                this.mesh.instanceColor.setXYZ(i, this.color.r, this.color.g, this.color.b);
+            }
+        } else if (this.colorMode === 'gradient') {
+            for (let i = 0; i < this.activeCount; i++) {
+                const t = this.activeCount > 1 ? i / (this.activeCount - 1) : 0;
+                this.color.copy(this.primaryColor).lerp(this.secondaryColor, t);
+                this.mesh.instanceColor.setXYZ(i, this.color.r, this.color.g, this.color.b);
+            }
+        } else if (this.colorMode === 'velocity') {
+            // Will be updated each frame in updateFromPhysics
+            for (let i = 0; i < this.activeCount; i++) {
+                this.mesh.instanceColor.setXYZ(i, this.primaryColor.r, this.primaryColor.g, this.primaryColor.b);
+            }
+        } else {
+            // 'role' mode (default)
+            const ROLE_COLORS = [
+                [0.50, 1.0, 0.5],   // 0: ambient - cyan
+                [0.08, 1.0, 0.6],   // 1: foundation - warm orange
+                [0.55, 1.0, 0.55],  // 2: column - cyan-blue
+                [0.83, 1.0, 0.55],  // 3: beam - magenta
+                [0.15, 1.0, 0.55],  // 4: brace - yellow
+                [0.70, 1.0, 0.55],  // 5: arch - purple
+            ];
+
+            for (let i = 0; i < this.activeCount; i++) {
+                const role = roles ? (roles[i] || 0) : 0;
+                const load = loads ? loads[i] : 0;
+                const [h, s, l] = ROLE_COLORS[Math.min(role, 5)];
+                const hShift = load * 0.15;
+                this.color.setHSL(h - hShift, s, l + load * 0.1);
+                this.mesh.instanceColor.setXYZ(i, this.color.r, this.color.g, this.color.b);
+            }
         }
 
         this.mesh.instanceColor.needsUpdate = true;
+    }
+
+    setColorMode(mode, primary, secondary) {
+        this.colorMode = mode;
+        if (primary) this.primaryColor.set(primary);
+        if (secondary) this.secondaryColor.set(secondary);
+        this.applyColorMode();
+    }
+
+    setBrightness(intensity) {
+        this.material.emissiveIntensity = intensity;
+    }
+
+    setOpacity(opacity) {
+        this.material.opacity = opacity;
+        this.material.transparent = opacity < 1.0;
+    }
+
+    setParticleSize(radius) {
+        const old = this.mesh.geometry;
+        const segments = old.parameters?.widthSegments || 6;
+        const rings = old.parameters?.heightSegments || 4;
+        this.mesh.geometry = new THREE.SphereGeometry(radius, segments, rings);
+        old.dispose();
     }
 
     setActiveCount(count) {

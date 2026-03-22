@@ -5,6 +5,8 @@ import { ArchitectureGenerator } from './ArchitectureGenerator.js';
 import { NeonRenderer, detectQuality, QUALITY } from './NeonRenderer.js';
 import { XRController } from './XRController.js';
 import { SimulationManager } from './SimulationManager.js';
+import { t, tPreset, getLang, setLang } from './i18n.js';
+import { MATERIALS, GROUNDS, CATEGORIES, materialToPhysics, groundToPhysics } from './Materials.js';
 
 // ==================== CONFIGURATION ====================
 const GROUND_SPREAD = 25;
@@ -98,6 +100,240 @@ class App {
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') submit();
         });
+
+        // === Visual Settings ===
+        const colorMode = document.getElementById('color-mode');
+        const colorPrimary = document.getElementById('color-primary');
+        const colorSecondary = document.getElementById('color-secondary');
+        const brightness = document.getElementById('param-brightness');
+        const bloom = document.getElementById('param-bloom');
+        const bloomRadius = document.getElementById('param-bloomRadius');
+        const particleSize = document.getElementById('param-particleSize');
+        const opacity = document.getElementById('param-opacity');
+        const bgColor = document.getElementById('color-bg');
+
+        const updateVisual = () => {
+            const display = (id, val) => {
+                const el = document.querySelector(`.param-value[data-for="${id}"]`);
+                if (el) el.textContent = parseFloat(val).toFixed(2);
+            };
+            display('param-brightness', brightness.value);
+            display('param-bloom', bloom.value);
+            display('param-bloomRadius', bloomRadius.value);
+            display('param-particleSize', particleSize.value);
+            display('param-opacity', opacity.value);
+        };
+
+        colorMode.addEventListener('change', () => {
+            const show2nd = colorMode.value === 'gradient' || colorMode.value === 'velocity';
+            document.getElementById('color-secondary-group').style.display = show2nd ? '' : 'none';
+            this.particleSystem.setColorMode(colorMode.value, colorPrimary.value, colorSecondary.value);
+        });
+        // Initial hide secondary
+        document.getElementById('color-secondary-group').style.display = 'none';
+
+        colorPrimary.addEventListener('input', () => {
+            this.particleSystem.setColorMode(colorMode.value, colorPrimary.value, colorSecondary.value);
+        });
+        colorSecondary.addEventListener('input', () => {
+            this.particleSystem.setColorMode(colorMode.value, colorPrimary.value, colorSecondary.value);
+        });
+
+        brightness.addEventListener('input', () => {
+            this.particleSystem.setBrightness(parseFloat(brightness.value));
+            updateVisual();
+        });
+
+        bloom.addEventListener('input', () => {
+            this.neonRenderer.bloomPass.strength = parseFloat(bloom.value);
+            updateVisual();
+        });
+        bloomRadius.addEventListener('input', () => {
+            this.neonRenderer.bloomPass.radius = parseFloat(bloomRadius.value);
+            updateVisual();
+        });
+
+        particleSize.addEventListener('input', () => {
+            this.particleSystem.setParticleSize(parseFloat(particleSize.value));
+            updateVisual();
+        });
+
+        opacity.addEventListener('input', () => {
+            this.particleSystem.setOpacity(parseFloat(opacity.value));
+            updateVisual();
+        });
+
+        bgColor.addEventListener('input', () => {
+            const c = parseInt(bgColor.value.slice(1), 16);
+            this.scene.background.set(c);
+            this.scene.fog.color.set(c);
+        });
+
+        // === Material & Ground Selection ===
+        this._initMaterialUI();
+
+        // === Community Contribution ===
+        document.getElementById('contrib-submit-btn')?.addEventListener('click', () => this._submitContribution());
+
+        // === Language Toggle ===
+        const langBtn = document.getElementById('lang-toggle');
+        this._applyLang();
+        langBtn.addEventListener('click', () => {
+            const next = getLang() === 'ko' ? 'en' : 'ko';
+            setLang(next);
+            this._applyLang();
+            this._populateMaterialSelect();
+            this._populateGroundSelect();
+            this.simManager._renderCardList();
+        });
+    }
+
+    _initMaterialUI() {
+        const catSel = document.getElementById('sel-category');
+        const matSel = document.getElementById('sel-material');
+        const gndSel = document.getElementById('sel-ground');
+        const depthSlider = document.getElementById('param-foundationDepth');
+
+        this._populateMaterialSelect();
+        this._populateGroundSelect();
+
+        catSel.addEventListener('change', () => this._populateMaterialSelect());
+
+        matSel.addEventListener('change', () => {
+            const key = matSel.value;
+            const mat = MATERIALS[key];
+            if (!mat) return;
+            this.physics.applyMaterial(mat);
+            this._showMaterialInfo(key);
+            // Update particle color to material color
+            if (mat.color) {
+                document.getElementById('color-primary').value = mat.color;
+                this.particleSystem.setColorMode('single', mat.color, null);
+            }
+        });
+
+        gndSel.addEventListener('change', () => {
+            const key = gndSel.value;
+            const gnd = GROUNDS[key];
+            if (!gnd) return;
+            this.physics.applyGround(gnd);
+            // Update ground visual color
+            if (gnd.color && this.neonRenderer.ground) {
+                this.neonRenderer.ground.material.color.set(gnd.color);
+            }
+        });
+
+        depthSlider.addEventListener('input', () => {
+            const v = parseFloat(depthSlider.value);
+            this.physics.foundationDepth = v;
+            this.physics.updateDerivedPhysics();
+            const display = document.querySelector('.param-value[data-for="param-foundationDepth"]');
+            if (display) display.textContent = v.toFixed(1) + 'm';
+        });
+    }
+
+    _populateMaterialSelect() {
+        const cat = document.getElementById('sel-category').value;
+        const sel = document.getElementById('sel-material');
+        const lang = getLang();
+        sel.innerHTML = '';
+        for (const [key, mat] of Object.entries(MATERIALS)) {
+            if (mat.category !== cat) continue;
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = mat.name[lang] || mat.name.en;
+            sel.appendChild(opt);
+        }
+        // Auto-select first and apply
+        if (sel.options.length > 0) {
+            sel.dispatchEvent(new Event('change'));
+        }
+    }
+
+    _populateGroundSelect() {
+        const sel = document.getElementById('sel-ground');
+        const lang = getLang();
+        sel.innerHTML = '';
+        for (const [key, gnd] of Object.entries(GROUNDS)) {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = gnd.name[lang] || gnd.name.en;
+            sel.appendChild(opt);
+        }
+    }
+
+    _showMaterialInfo(key) {
+        const mat = MATERIALS[key];
+        const lang = getLang();
+        const info = document.getElementById('material-info');
+        if (!info || !mat) return;
+        const fmt = (v, unit) => {
+            if (v >= 1e9) return (v/1e9).toFixed(1) + ' G' + unit;
+            if (v >= 1e6) return (v/1e6).toFixed(1) + ' M' + unit;
+            if (v >= 1e3) return (v/1e3).toFixed(1) + ' k' + unit;
+            if (v < 0.01) return v.toExponential(1) + ' ' + unit;
+            return v.toFixed(2) + ' ' + unit;
+        };
+        info.innerHTML = `
+            <div class="info-row"><span>ρ</span><span>${mat.density} kg/m³</span></div>
+            <div class="info-row"><span>E</span><span>${fmt(mat.youngsModulus, 'Pa')}</span></div>
+            <div class="info-row"><span>σy</span><span>${fmt(mat.yieldStrength, 'Pa')}</span></div>
+            <div class="info-row"><span>ν</span><span>${mat.poissonRatio}</span></div>
+            <div class="info-row"><span>α</span><span>${mat.thermalExpansion.toExponential(1)} /K</span></div>
+            <div class="info-row"><span>Tm</span><span>${mat.meltingPoint} K</span></div>
+        `;
+    }
+
+    async _submitContribution() {
+        const name = document.getElementById('contrib-name').value || 'Anonymous';
+        const domain = document.getElementById('contrib-domain').value;
+        const type = document.getElementById('contrib-type').value;
+        const content = document.getElementById('contrib-content').value;
+        const status = document.getElementById('contrib-status');
+
+        if (!content.trim()) {
+            status.textContent = '⚠ Content required';
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/contributions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ author: name, domain, type, content }),
+            });
+            if (res.ok) {
+                status.textContent = '✓ Submitted! Thank you for your contribution.';
+                document.getElementById('contrib-content').value = '';
+            } else {
+                status.textContent = '✗ Server error';
+            }
+        } catch {
+            status.textContent = '✗ Offline — saved locally';
+        }
+    }
+
+    _applyLang() {
+        const lang = getLang();
+        document.getElementById('lang-toggle').textContent = lang.toUpperCase();
+
+        // Update all data-i18n elements
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.dataset.i18n;
+            const val = t(key);
+            if (el.tagName === 'OPTION') {
+                el.textContent = val;
+            } else if (el.tagName === 'INPUT' || el.tagName === 'BUTTON') {
+                el.textContent = val;
+            } else {
+                el.innerHTML = val;
+            }
+        });
+
+        // Update placeholder attributes
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            el.placeholder = t(el.dataset.i18nPlaceholder);
+        });
     }
 
     // ==================== CARD & PHYSICS CALLBACKS ====================
@@ -117,9 +353,8 @@ class App {
     }
 
     _applyPhysics(p) {
-        this.physics.GRAVITY = p.gravity;
-        this.physics.DAMPING = p.damping;
-        this.physics.TARGET_SPRING_K = p.springStiffness;
+        // Core physics (SI units)
+        this.physics.GRAVITY = p.gravity;               // m/s²
         this.timeScale = p.timeScale;
 
         // Wind & environment
@@ -129,28 +364,32 @@ class App {
         this.physics.turbulence = p.turbulence || 0;
         this.physics.viscosity = p.viscosity || 0;
         this.physics.temperature = p.temperature || 293;
+
+        // Material properties — sliders map to real SI units
+        // density slider (0.1–20) → ×1000 = kg/m³
+        // springK slider (0–100) → ×1e9 = Pa (GPa)
+        // damping slider (0–1) → inverted to damping ratio ζ
+        // yieldStrength slider (0–100) → ×1e6 = Pa (MPa)
+        this.physics.materialDensity = (p.density || 2.4) * 1000;
+        this.physics.youngsModulus = (p.springStiffness || 20) * 1e9;
+        this.physics.dampingRatio = Math.max(0.001, 1.0 - (p.damping || 0.97));
+        this.physics.materialYieldStrength = (p.yieldStrength || 50) * 1e6;
+
+        // Foundation depth (m)
+        this.physics.foundationDepth = p.foundation || 5.0;
+
+        // Ground properties (friction & bounciness from sliders directly)
         this.physics.friction = p.friction || 0.8;
         this.physics.bounciness = p.bounciness || 0.3;
 
-        // Material
-        this.physics.foundation = p.foundation || 5.0;
-        this.physics.density = p.density || 2.4;
-        this.physics.elasticity = p.elasticity || 0.3;
-        this.physics.yieldStrength = p.yieldStrength || 50;
+        // Hazards (SI)
+        this.physics.seismic = p.seismic || 0;          // m/s²
+        this.physics.seismicFreq = p.seismicFreq || 2.0; // Hz
+        this.physics.snowLoad = p.snowLoad || 0;         // kN/m²
+        this.physics.floodLevel = p.floodLevel || 0;     // m
 
-        // Hazards
-        this.physics.seismic = p.seismic || 0;
-        this.physics.seismicFreq = p.seismicFreq || 2.0;
-        this.physics.snowLoad = p.snowLoad || 0;
-        this.physics.floodLevel = p.floodLevel || 0;
-
-        // Update target stiffness for existing particles
-        const foundationK = (p.foundation || 5.0) / 5.0;
-        for (let i = 0; i < this.physics.activeCount; i++) {
-            if (this.physics.hasTarget[i]) {
-                this.physics.targetStiffness[i] = p.springStiffness * foundationK * (1.0 + (this.physics.mass[i] - 1.0) * 0.75);
-            }
-        }
+        // Recalculate all derived quantities (mass, spring K, damping)
+        this.physics.updateDerivedPhysics();
     }
 
     // ==================== STRUCTURE BUILDING ====================

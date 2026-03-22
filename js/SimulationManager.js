@@ -3,6 +3,7 @@
  * Handles simulation card CRUD, sidebar UI, physics parameter binding,
  * AI chat interface, and server communication.
  */
+import { tPreset } from './i18n.js';
 
 const API_BASE = '';  // Same origin
 
@@ -70,7 +71,7 @@ const PRESETS = [
     { name: '고온 플라즈마',     prompt: 'sphere',                tags: ['plasma', 'hot'],      physics: p({ gravity: 0.5, damping: 0.90, springStiffness: 2, particleCount: 30000, bounciness: 0.7, friction: 0.1, windY: 5, viscosity: 0.2, temperature: 4500 }) },
     { name: '극저온 동결',       prompt: 'cube',                  tags: ['cryo', 'frozen'],     physics: p({ temperature: 5, damping: 0.999, springStiffness: 50, friction: 0.99, bounciness: 0.01 }) },
     { name: '슬로우모션',       prompt: 'tower',                 tags: ['slow', 'cinematic'],  physics: p({ timeScale: 0.2, springStiffness: 20 }) },
-    { name: '고속 시뮬',        prompt: 'house',                 tags: ['fast', 'speed'],      physics: p({ timeScale: 3.0, springStiffness: 20 }) },
+    { name: '고속 시뮬',        prompt: 'tower',                 tags: ['fast', 'speed'],      physics: p({ timeScale: 3.0, springStiffness: 20 }) },
 ];
 
 export class SimulationManager {
@@ -272,8 +273,9 @@ export class SimulationManager {
 
             const timeAgo = this._timeAgo(card.updatedAt);
 
+            const displayName = tPreset(card.name) || card.name;
             el.innerHTML = `
-                <div class="card-name">${this._escapeHtml(card.name)}</div>
+                <div class="card-name">${this._escapeHtml(displayName)}</div>
                 <div class="card-prompt">${this._escapeHtml(card.prompt || 'No prompt')}</div>
                 <div class="card-meta">
                     <div class="card-tags">${tagsHtml}</div>
