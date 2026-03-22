@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Neon Particle XR Simulator</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="ui-overlay">
+        <div id="title-bar">
+            <h1>PARTICLE ARCHITECT</h1>
+            <div id="stats">
+                <span id="particle-count">0</span> particles
+                <span id="fps-counter">60 fps</span>
+            </div>
+        </div>
+
+        <div id="prompt-panel">
+            <input type="text" id="prompt-input"
+                   placeholder="Enter structure: cathedral, bridge, tower, pyramid, skyscraper..."
+                   autocomplete="off" />
+            <button id="generate-btn">BUILD</button>
+        </div>
+
+        <div id="status-bar">
+            <span id="status">Ready</span>
+            <span id="structure-info"></span>
+        </div>
+
+        <div id="controls-hint">
+            <span>Orbit: drag | Zoom: scroll | Pan: right-drag</span>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
